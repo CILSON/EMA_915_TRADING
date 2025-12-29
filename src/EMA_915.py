@@ -6,7 +6,7 @@ from datetime import datetime
 class EMATradingAlgorithm:
     def __init__(self, initial_capital=10000, risk_per_trade=0.01, atr_stop_multiplier=2.0, 
                  max_bars_in_trade=20, min_atr_percentile=30, atr_percentile_lookback=100,
-                 min_stop_distance_pct=0.5):
+                 min_stop_distance_pct=0.5, bars_per_day=288):
         self.initial_capital = initial_capital
         self.capital = initial_capital
         self.risk_per_trade = risk_per_trade
@@ -15,6 +15,7 @@ class EMATradingAlgorithm:
         self.min_atr_percentile = min_atr_percentile
         self.atr_percentile_lookback = atr_percentile_lookback
         self.min_stop_distance_pct = min_stop_distance_pct
+        self.bars_per_day = bars_per_day
         self.position = None
         self.entry_price = 0
         self.stop_loss = 0
@@ -25,6 +26,9 @@ class EMATradingAlgorithm:
         self.pending_atr = None
         self.trades = []
         self.equity_curve = []
+        self.last_processed_index = None
+        self.fee_rate = 0.001   # 0.10%
+
         
     def calculate_ema(self, data, period):
         """Calculate Exponential Moving Average"""
@@ -215,36 +219,47 @@ class EMATradingAlgorithm:
         stop_distance = abs(price - stop_loss)
         stop_distance_pct = (stop_distance / price) * 100
         
-        print(f"\n{date.strftime('%Y-%m-%d')} - Opening {position_type.upper()} position (NEXT-BAR ENTRY)")
+        print(f"\n{date.strftime('%Y-%m-%d %H:%M UTC')} - Opening {position_type.upper()} position (NEXT-BAR ENTRY)")
         print(f"  Entry Price: ${price:.2f} (at open)")
         print(f"  ATR: ${atr:.2f}")
         print(f"  Stop Loss: ${stop_loss:.2f}")
         print(f"  Stop Distance: ${stop_distance:.2f} ({stop_distance_pct:.2f}%)")
         print(f"  Min Stop Distance Enforced: {self.min_stop_distance_pct}%")
         print(f"  Current Capital: ${self.capital:.2f}")
-        print(f"  Risk Amount (1%): ${risk_amount:.2f}")
+        print(f"  Risk Amount ({self.risk_per_trade*100:.2f}%): ${risk_amount:.2f}")
         print(f"  Position Size: {self.position_size:.4f} units")
         print(f"  Position Value: ${position_value:.2f}")
     
     def close_position(self, price, index, date, exit_reason='normal'):
-        """Close the current trading position and update capital"""
+        # Gross PnL
         if self.position == 'long':
-            pnl = (price - self.entry_price) * self.position_size
+            gross_pnl = (price - self.entry_price) * self.position_size
             pnl_pct = (price / self.entry_price - 1) * 100
         else:
-            pnl = (self.entry_price - price) * self.position_size
+            gross_pnl = (self.entry_price - price) * self.position_size
             pnl_pct = (1 - price / self.entry_price) * 100
-        
+
+        # Commissions (entry + exit)
+        entry_fee = self.entry_price * self.position_size * self.fee_rate
+        exit_fee = price * self.position_size * self.fee_rate
+        total_fees = entry_fee + exit_fee
+
+        # Net PnL
+        pnl = gross_pnl - total_fees
+
         bars_in_trade = index - self.entry_bar
-        
+
         old_capital = self.capital
         self.capital += pnl
+
         
         trade = {
             'type': self.position,
             'entry_price': self.entry_price,
             'exit_price': price,
             'position_size': self.position_size,
+            'gross_pnl': gross_pnl,
+            'fees': total_fees,
             'pnl': pnl,
             'pnl_pct': pnl_pct,
             'capital_before': old_capital,
@@ -262,7 +277,7 @@ class EMATradingAlgorithm:
         }
         exit_type = exit_type_map.get(exit_reason, 'CLOSED')
         
-        print(f"\n{date.strftime('%Y-%m-%d')} - {exit_type} {self.position.upper()} position")
+        print(f"\n{date.strftime('%Y-%m-%d %H:%M UTC')} - {exit_type} {self.position.upper()} position")
         print(f"  Exit Price: ${price:.2f}")
         print(f"  Bars Held: {bars_in_trade}")
         print(f"  Position Size: {self.position_size:.4f} units")
@@ -275,6 +290,9 @@ class EMATradingAlgorithm:
         self.stop_loss = 0
         self.position_size = 0
         self.entry_bar = 0
+
+        pd.DataFrame(self.trades).to_csv("paper_trades_eth_5m.csv", index=False)
+
     
     def calculate_statistics(self, data):
         """Calculate trading statistics and benchmark comparison"""
@@ -301,14 +319,17 @@ class EMATradingAlgorithm:
         avg_bars_held = trades_df['bars_held'].mean() if len(trades_df) > 0 else 0
         
         strategy_return = ((self.capital - self.initial_capital) / self.initial_capital) * 100
-        buy_hold_return = data['buy_hold_returns'].iloc[-1]
+        buy_hold_return = "N/A"
         
         equity_returns = data['strategy_equity'].pct_change().dropna()
         
         if len(equity_returns) > 0 and equity_returns.std() > 0:
-            avg_daily_return = equity_returns.mean()
-            std_daily_return = equity_returns.std()
-            sharpe_ratio = (avg_daily_return / std_daily_return) * np.sqrt(252)
+            annual_factor = np.sqrt(365 * self.bars_per_day)
+
+            avg_return = equity_returns.mean()
+            std_return = equity_returns.std()
+
+            sharpe_ratio = (avg_return / std_return) * annual_factor if std_return > 0 else 0
         else:
             sharpe_ratio = 0
         
@@ -322,6 +343,13 @@ class EMATradingAlgorithm:
         loss_streaks = trades_df[~trades_df['win']].groupby('streak').size()
         max_consecutive_wins = win_streaks.max() if len(win_streaks) > 0 else 0
         max_consecutive_losses = loss_streaks.max() if len(loss_streaks) > 0 else 0
+        gross_profit = trades_df[trades_df['pnl'] > 0]['pnl'].sum()
+        gross_loss = abs(trades_df[trades_df['pnl'] <= 0]['pnl'].sum())
+        gross_pnl = gross_profit - gross_loss
+        total_fees = trades_df['fees'].sum()
+
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else np.nan
+
         
         stats = {
             'Risk Per Trade': f"{self.risk_per_trade * 100:.2f}%",
@@ -347,15 +375,17 @@ class EMATradingAlgorithm:
             'Largest Loss': f"${largest_loss:.2f}",
             'Max Consecutive Wins': int(max_consecutive_wins),
             'Max Consecutive Losses': int(max_consecutive_losses),
-            'Profit Factor': f"{abs(avg_win * winning_trades / (avg_loss * losing_trades)) if losing_trades > 0 and avg_loss != 0 else 'N/A'}",
+            'Profit Factor': f"{profit_factor:.2f}" if not np.isnan(profit_factor) else 'N/A',
+            'Gross P&L': f"${gross_pnl:.2f}",
+            'Fees': f"${total_fees:.2f}",
             '   ': '',
             'Initial Capital': f"${self.initial_capital:.2f}",
             'Final Capital': f"${self.capital:.2f}",
             'Total P&L': f"${total_pnl:.2f}",
             '    ': '',
             'Strategy Return': f"{strategy_return:.2f}%",
-            'Buy & Hold Return': f"{buy_hold_return:.2f}%",
-            'Alpha (vs Buy & Hold)': f"{(strategy_return - buy_hold_return):.2f}%",
+            'Buy & Hold Return': "N/A",
+            'Alpha (vs Buy & Hold)': "N/A",
             '     ': '',
             'Sharpe Ratio (Annualized)': f"{sharpe_ratio:.2f}",
             'Max Drawdown': f"{max_drawdown:.2f}%"
@@ -446,44 +476,4 @@ class EMATradingAlgorithm:
         
         plt.tight_layout()
         plt.show()
-
-
-if __name__ == "__main__":
-    print("=" * 70)
-    print("EMA 9/15 ALGORITHMIC TRADING STRATEGY WITH RISK MANAGEMENT")
-    print("=" * 70)
-    print("\nStrategy Rules:")
-    print("  LONG:  Entry when slope > 0 AND close > EMA9 | Exit at ATR-based stop")
-    print("  SHORT: Entry when slope < 0 AND close < EMA9 | Exit at ATR-based stop")
-    print("  RISK:  1% of capital per trade with position sizing")
-    print("  STOP:  ATR-based (default 2x ATR) + Time stop (max 20 bars)")
-    print("        + Minimum stop distance enforcement")
-    print("  FILTER: Rolling ATR percentile (no lookahead)")
-    print("  EXECUTION: Next-bar entry at open")
-    print("=" * 70)
-    print()
-    
-    print("USAGE EXAMPLE:")
-    print("-" * 70)
-    print("import yfinance as yf")
-    print("df = yf.download('SPY', start='2023-01-01', end='2024-01-01')")
-    print()
-    print("algo = EMATradingAlgorithm(")
-    print("    initial_capital=10000,")
-    print("    risk_per_trade=0.01,")
-    print("    atr_stop_multiplier=2.0,")
-    print("    max_bars_in_trade=20,")
-    print("    min_atr_percentile=30,")
-    print("    atr_percentile_lookback=100,")
-    print("    min_stop_distance_pct=0.5")
-    print(")")
-    print("result = algo.backtest(df)")
-    print("stats = algo.calculate_statistics(result)")
-    print("for key, value in stats.items():")
-    print("    print(f'{key:.<30} {value}')")
-    print("algo.plot_results(result)")
-    print("-" * 70)
-    print()
-    print("NOTE: Columns should be lowercase.")
-    print("If not: df.columns = df.columns.str.lower()")
-    print("=" * 70)
+        
