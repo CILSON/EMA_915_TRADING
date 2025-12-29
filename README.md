@@ -1,1 +1,0 @@
-# EMA_915_TRADING
