@@ -5,7 +5,6 @@ Intraday trend-following system with:
 - Fixed fractional risk
 - Volatility filter
 - Next-bar execution
-- Commission-aware accounting
 
 ## Usage
 
