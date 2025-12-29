@@ -1,0 +1,8 @@
+initial_capital: 10000
+risk_per_trade: 0.005
+atr_stop_multiplier: 2.0
+max_bars_in_trade: 78
+min_atr_percentile: 30
+atr_percentile_lookback: 100
+min_stop_distance_pct: 0.5
+fee_rate: 0.0005
