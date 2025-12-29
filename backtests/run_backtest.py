@@ -7,7 +7,7 @@ from src.EMA_915 import EMATradingAlgorithm
 import yfinance as yf
 
 # Download 5-minute data
-df = yf.download("ETH", start="2025-11-3", interval="5m")
+df = yf.download("ETH", start="2025-11-03", interval="5m")
 
 # FIX: flatten MultiIndex columns
 df.columns = df.columns.get_level_values(0)
