@@ -22,7 +22,7 @@ algo = EMATradingAlgorithm(
     risk_per_trade=0.01,
     atr_stop_multiplier=2.0,
     max_bars_in_trade=78,          # 1 trading day for 5m bars
-    min_atr_percentile=30,
+    min_atr_percentile=50,
     atr_percentile_lookback=100,
     min_stop_distance_pct=0.5
 )
@@ -34,6 +34,15 @@ stats = algo.calculate_statistics(result)
 # Print stats
 for key, value in stats.items():
     print(f"{key:.<30} {value}")
+
+# Convert stats dict to DataFrame
+stats_df = pd.DataFrame(
+    list(stats.items()),
+    columns=["Metric", "Value"]
+)
+
+# Save to CSV
+stats_df.to_csv("btc_5m_summary_stats.csv", index=False)
 
 # Plot
 algo.plot_results(result)
