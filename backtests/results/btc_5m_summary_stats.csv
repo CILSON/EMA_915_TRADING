@@ -1,0 +1,36 @@
+Metric,Value
+Risk Per Trade,1.00%
+ATR Stop Multiplier,2.0x
+Min Stop Distance,0.5%
+Max Bars in Trade,78
+Min ATR Percentile,50th
+ATR Percentile Lookback,100
+,
+Total Trades,51
+Winning Trades,16
+Losing Trades,35
+Win Rate,31.37%
+ ,
+Stop Loss Exits,33
+Time Stop Exits,18
+Normal Exits,0
+Avg Bars Held,37.8
+  ,
+Average Win,$407.09
+Average Loss,$-106.40
+Largest Win,$1038.50
+Largest Loss,$-137.48
+Max Consecutive Wins,2
+Max Consecutive Losses,7
+Profit Factor,1.7490977219087267
+   ,
+Initial Capital,$10000.00
+Final Capital,$12789.57
+Total P&L,$2789.57
+    ,
+Strategy Return,27.90%
+Buy & Hold Return,-8.97%
+Alpha (vs Buy & Hold),36.87%
+     ,
+Sharpe Ratio (Annualized),0.53
+Max Drawdown,-7.81%

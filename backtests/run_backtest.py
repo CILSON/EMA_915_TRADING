@@ -5,6 +5,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.EMA_915 import EMATradingAlgorithm
 import yfinance as yf
+import pandas as pd
 
 # Download 5-minute data
 df = yf.download("ETH", start="2025-11-03", interval="5m")
