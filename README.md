@@ -90,7 +90,7 @@ The ATR percentile calculation uses only historical ATR observations before the 
 
 ---
 
-## Backtest Configuration
+## Backtest Configuration(tested for harsh conditions)
 
 The strategy supports parameters including:
 
@@ -102,7 +102,7 @@ max_bars_in_trade: 78
 min_atr_percentile: 30
 atr_percentile_lookback: 100
 min_stop_distance_pct: 0.5
-fee_rate: 0.0005
+fee_rate: 0.001
 ```
 
 These parameters control:
