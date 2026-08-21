@@ -1,11 +1,26 @@
 import sys
 import os
+import yaml
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 from src.EMA_915 import EMATradingAlgorithm
 import yfinance as yf
 import pandas as pd
+
+# -----------------------------
+# Load configuration
+# -----------------------------
+
+ROOT_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")
+)
+
+CONFIG_PATH = os.path.join(ROOT_DIR, "config.yaml")
+
+with open(CONFIG_PATH, "r") as f:
+    config = yaml.safe_load(f)
+
 
 # Download 5-minute data
 df = yf.download("ETH", start="2025-11-03", interval="5m")
@@ -19,13 +34,13 @@ df.columns = df.columns.str.lower()
 
 # Initialize strategy
 algo = EMATradingAlgorithm(
-    initial_capital=10000,
-    risk_per_trade=0.01,
-    atr_stop_multiplier=2.0,
-    max_bars_in_trade=78,          # 1 trading day for 5m bars
-    min_atr_percentile=50,
-    atr_percentile_lookback=100,
-    min_stop_distance_pct=0.5
+    initial_capital=config["initial_capital"],
+    risk_per_trade=config["risk_per_trade"],
+    atr_stop_multiplier=config["atr_stop_multiplier"],
+    max_bars_in_trade=config["max_bars_in_trade"],
+    min_atr_percentile=config["min_atr_percentile"],
+    atr_percentile_lookback=config["atr_percentile_lookback"],
+    min_stop_distance_pct=config["min_stop_distance_pct"],
 )
 
 # Run backtest
