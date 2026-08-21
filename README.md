@@ -96,7 +96,7 @@ The strategy supports parameters including:
 
 ```yaml
 initial_capital: 10000
-risk_per_trade: 0.005
+risk_per_trade: 0.01
 atr_stop_multiplier: 2.0
 max_bars_in_trade: 78
 min_atr_percentile: 30
